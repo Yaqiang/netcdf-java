@@ -5,20 +5,24 @@
 package thredds.inventory.s3;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Objects;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest.Builder;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import thredds.inventory.MFile;
 import thredds.inventory.MFileProvider;
+import ucar.nc2.util.IO;
+import ucar.unidata.io.RandomAccessFile;
 import ucar.unidata.io.s3.CdmS3Client;
 import ucar.unidata.io.s3.CdmS3Uri;
+import ucar.unidata.io.s3.S3RandomAccessFile;
 
 /**
  * Implements {@link thredds.inventory.MFile} for objects stored on AWS S3 compatible object stores.
@@ -36,6 +40,7 @@ public class MFileS3 implements MFile {
 
   private long length;
   private long lastMod;
+  private Boolean exists;
 
   private Object auxInfo;
 
@@ -86,12 +91,8 @@ public class MFileS3 implements MFile {
   @Nullable
   private HeadObjectResponse getHeadObjectResponse() {
     HeadObjectResponse response = null;
-    S3Client client = null;
-    try {
-      client = CdmS3Client.acquire(cdmS3Uri);
-    } catch (IOException ioe) {
-      logger.error("Could not create a CdmS3Client for {}", cdmS3Uri, ioe);
-    }
+    S3Client client = getClient();
+
     if (client != null) {
       Builder headObjectRequestBuilder = HeadObjectRequest.builder().bucket(cdmS3Uri.getBucket());
       if (key != null) {
@@ -100,6 +101,17 @@ public class MFileS3 implements MFile {
       response = client.headObject(headObjectRequestBuilder.build());
     }
     return response;
+  }
+
+  @Nullable
+  private S3Client getClient() {
+    S3Client client = null;
+    try {
+      client = CdmS3Client.acquire(cdmS3Uri);
+    } catch (IOException ioe) {
+      logger.error("Could not create a CdmS3Client for {}", cdmS3Uri, ioe);
+    }
+    return client;
   }
 
   @Override
@@ -175,10 +187,7 @@ public class MFileS3 implements MFile {
       // Now, find the location of the rightmost delimiter
       int lastDelimiter = name.lastIndexOf(delimiter);
 
-      // if no rightmost delimiter found, then we are at the top level of the bucket, so the name is blank
-      if (lastDelimiter < 0) {
-        name = "";
-      } else {
+      if (lastDelimiter >= 0) {
         // the "name" is everything after that last delimiter
         name = name.substring(lastDelimiter);
         if (name.startsWith(delimiter)) {
@@ -265,6 +274,53 @@ public class MFileS3 implements MFile {
 
     return (cdmS3Uri.equals(mFileS3.cdmS3Uri) && Objects.equals(key, mFileS3.key)
         && Objects.equals(delimiter, mFileS3.delimiter) && Objects.equals(auxInfo, mFileS3.auxInfo));
+  }
+
+  @Override
+  public boolean exists() {
+    if (exists == null) {
+      updateExists();
+    }
+
+    return exists;
+  }
+
+  // Update file exists by fetching from a head request
+  private void updateExists() {
+    try {
+      headObjectResponse.get();
+      exists = true;
+    } catch (NoSuchKeyException e) {
+      exists = false;
+    }
+  }
+
+  @Override
+  public ResponseInputStream<GetObjectResponse> getInputStream() {
+    S3Client client = getClient();
+
+    if (client == null) {
+      return null;
+    }
+
+    GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(cdmS3Uri.getBucket()).key(key).build();
+    return client.getObject(getObjectRequest);
+  }
+
+  @Override
+  public void writeToStream(OutputStream outputStream) throws IOException {
+    ResponseInputStream<GetObjectResponse> responseInputStream = getInputStream();
+
+    IO.copy(responseInputStream, outputStream);
+  }
+
+  @Override
+  public void writeToStream(OutputStream outputStream, long offset, long maxBytes) throws IOException {
+    final S3RandomAccessFile.Provider provider = new S3RandomAccessFile.Provider();
+
+    try (RandomAccessFile randomAccessFile = provider.open(cdmS3Uri.toString())) {
+      IO.copyRafB(randomAccessFile, offset, maxBytes, outputStream);
+    }
   }
 
   public static class Provider implements MFileProvider {

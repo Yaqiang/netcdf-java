@@ -26,7 +26,7 @@ public class Access { // (5)
 
   public Access(Dataset dataset, String urlPath, Service service, String dataFormatS, long dataSize) {
     this.dataset = dataset;
-    this.urlPath = urlPath; // urlPath.startsWith("/") ? urlPath.substring(1) : urlPath;
+    this.urlPath = encodeSpaces(urlPath); // urlPath.startsWith("/") ? urlPath.substring(1) : urlPath;
     this.service = service;
     this.dataFormatS = dataFormatS;
     this.dataSize = dataSize;
@@ -63,7 +63,7 @@ public class Access { // (5)
   } // optional
 
   /**
-   * Get the standard URL, with resolution if the URL is reletive.
+   * Get the standard URL, with resolution if the URL is relative.
    * catalog.resolveURI( getUnresolvedUrlName())
    *
    * @return URL string, or null if error.
@@ -95,7 +95,7 @@ public class Access { // (5)
 
   /**
    * Construct "unresolved" URL: service.getBase() + getUrlPath() + service.getSuffix().
-   * It is not resolved, so it may be a reletive URL.
+   * It is not resolved, so it may be a relative URL.
    * 
    * @return unresolved Url as a String
    */
@@ -149,5 +149,9 @@ public class Access { // (5)
   public String toString() {
     return "Access{" + "service=" + service + ", urlPath='" + urlPath + '\'' + ", dataFormatS='" + dataFormatS + '\''
         + ", dataSize=" + dataSize + '}';
+  }
+
+  private static String encodeSpaces(String name) {
+    return name.replace(" ", "%20");
   }
 }

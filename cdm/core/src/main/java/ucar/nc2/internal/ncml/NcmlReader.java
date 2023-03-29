@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Formatter;
@@ -282,7 +283,7 @@ public class NcmlReader {
    * @throws IOException on read error
    */
   public static NetcdfDataset.Builder mergeNcml(NetcdfFile ref, @Nullable Element ncmlElem) throws IOException {
-    NetcdfDataset.Builder targetDS = new NetcdfDataset(ref.toBuilder()).toBuilder(); // no enhance
+    NetcdfDataset.Builder targetDS = NetcdfDataset.builder(ref); // no enhance
 
     if (ncmlElem != null) {
       NcmlReader reader = new NcmlReader();
@@ -299,7 +300,7 @@ public class NcmlReader {
    * This is an internal method, users should use {@link NetcdfDatasets#openNcmlDataset(Reader, String, CancelTask)}
    *
    * @param r the Reader containing the NcML document
-   * @param ncmlLocation the URL location string of the NcML document, used to resolve reletive path of the referenced
+   * @param ncmlLocation the URL location string of the NcML document, used to resolve relative path of the referenced
    *        dataset,
    *        or may be just a unique name for caching purposes.
    * @param cancelTask allow user to cancel the task; may be null
@@ -326,11 +327,7 @@ public class NcmlReader {
     Element netcdfElem = doc.getRootElement();
 
     // the ncml probably refers to another dataset, but doesnt have to
-    String referencedDatasetUri = netcdfElem.getAttributeValue("location");
-    if (referencedDatasetUri == null)
-      referencedDatasetUri = netcdfElem.getAttributeValue("url");
-    if (referencedDatasetUri != null)
-      referencedDatasetUri = AliasTranslator.translateAlias(referencedDatasetUri);
+    final String referencedDatasetUri = getLocation(netcdfElem);
 
     NcmlReader reader = new NcmlReader();
     return reader.readNcml(ncmlLocation, referencedDatasetUri, netcdfElem, cancelTask);
@@ -384,17 +381,28 @@ public class NcmlReader {
 
     if (referencedDatasetUri == null) {
       // the ncml probably refers to another dataset, but doesnt have to
-      referencedDatasetUri = netcdfElem.getAttributeValue("location");
-      if (referencedDatasetUri == null) {
-        referencedDatasetUri = netcdfElem.getAttributeValue("url");
-      }
-    }
-    if (referencedDatasetUri != null) {
-      referencedDatasetUri = AliasTranslator.translateAlias(referencedDatasetUri);
+      referencedDatasetUri = getLocation(netcdfElem);
     }
 
     NcmlReader reader = new NcmlReader();
     return reader.readNcml(ncmlLocation, referencedDatasetUri, netcdfElem, cancelTask);
+  }
+
+  /**
+   * Find the location attribute in a NcML string
+   *
+   * @param ncml the NcML as a string
+   * @return the resulting location attribute, or null if not found or if the NcML cannot be read
+   */
+  public static String getLocationFromNcml(String ncml) {
+    try {
+      final SAXBuilder builder = new SAXBuilder();
+      builder.setExpandEntities(false);
+      final org.jdom2.Document doc = builder.build(new StringReader(ncml));
+      return getLocation(doc.getRootElement());
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////////////
@@ -408,7 +416,7 @@ public class NcmlReader {
    * This sets up the target dataset and the referenced dataset. only place that iospParam is processed, so everything
    * must go through here
    *
-   * @param ncmlLocation the URL location string of the NcML document, used to resolve reletive path of the referenced
+   * @param ncmlLocation the URL location string of the NcML document, used to resolve relative path of the referenced
    *        dataset, or
    *        may be just a unique name for caching purposes.
    * @param referencedDatasetUri refers to this dataset (may be null)
@@ -487,7 +495,7 @@ public class NcmlReader {
    * <p/>
    * This is a bit tricky, because it handles several cases When targetDS == refds, we are just modifying targetDS. When
    * targetDS != refds,
-   * we keep them seperate, and copy from refds to newds.
+   * we keep them separate, and copy from refds to newds.
    * <p/>
    * The user may be defining new elements or modifying old ones. The only way to tell is by seeing if the elements
    * already exist.
@@ -657,13 +665,20 @@ public class NcmlReader {
     boolean newName = (nameInFile != null) && !nameInFile.equals(name);
     if (nameInFile == null) {
       nameInFile = name;
-    } else if (null == findAttribute(ref, nameInFile)) { // has to exists
+    } else if (findAttribute(ref, nameInFile) == null && findAttribute(dest, nameInFile) == null) { // has to exist
       errlog.format("NcML attribute orgName '%s' doesnt exist. att=%s in=%s%n", nameInFile, name, refName);
       return;
     }
 
     // see if its new
-    ucar.nc2.Attribute oldatt = findAttribute(ref, nameInFile);
+    ucar.nc2.Attribute oldatt = null;
+    if (ref != null) {
+      oldatt = findAttribute(ref, nameInFile);
+    } else {
+      // no reference container but may still need to rename the attribute in the destination container
+      oldatt = findAttribute(dest, nameInFile);
+    }
+
     if (oldatt == null) { // new
       if (debugConstruct) {
         System.out.println(" add new att = " + name);
@@ -1100,6 +1115,12 @@ public class NcmlReader {
       readAtt(addedFromAgg.getAttributeContainer(), null, attElem);
     }
 
+    // process remove command
+    java.util.List<Element> removeList = varElem.getChildren("remove", ncNS);
+    for (Element remElem : removeList) {
+      cmdRemove(addedFromAgg, remElem.getAttributeValue("type"), remElem.getAttributeValue("name"));
+    }
+
     String typedefS = dtype.isEnum() ? varElem.getAttributeValue("typedef") : null;
     if (typedefS != null) {
       addedFromAgg.setEnumTypeName(typedefS);
@@ -1453,13 +1474,7 @@ public class NcmlReader {
     // nested netcdf elements
     java.util.List<Element> ncList = aggElem.getChildren("netcdf", ncNS);
     for (Element netcdfElemNested : ncList) {
-      String location = netcdfElemNested.getAttributeValue("location");
-      if (location == null) {
-        location = netcdfElemNested.getAttributeValue("url");
-      }
-      if (location != null) {
-        location = AliasTranslator.translateAlias(location);
-      }
+      final String location = getLocation(netcdfElemNested);
 
       String id = netcdfElemNested.getAttributeValue("id");
       String ncoords = netcdfElemNested.getAttributeValue("ncoords");
@@ -1551,6 +1566,14 @@ public class NcmlReader {
     }
 
     return agg;
+  }
+
+  private static String getLocation(Element netCdfElem) {
+    String referencedDatasetUri = netCdfElem.getAttributeValue("location");
+    if (referencedDatasetUri == null) {
+      referencedDatasetUri = netCdfElem.getAttributeValue("url");
+    }
+    return referencedDatasetUri != null ? AliasTranslator.translateAlias(referencedDatasetUri) : null;
   }
 
   private class NcmlElementReader implements ucar.nc2.util.cache.FileFactory {

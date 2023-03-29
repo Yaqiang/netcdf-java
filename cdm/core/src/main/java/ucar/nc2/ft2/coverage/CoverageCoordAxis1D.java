@@ -114,6 +114,25 @@ public class CoverageCoordAxis1D extends CoverageCoordAxis { // implements Itera
     throw new IllegalStateException("unknown spacing" + spacing);
   }
 
+  public double getCoord(int index) {
+    if (index < 0 || index >= getNcoords()) {
+      throw new IllegalArgumentException("Index out of range=" + index);
+    }
+    loadValuesIfNeeded();
+
+    switch (spacing) {
+      case regularPoint:
+      case regularInterval:
+        return startValue + index * getResolution();
+
+      case irregularPoint:
+      case contiguousInterval:
+      case discontiguousInterval:
+        return values[index];
+    }
+    throw new IllegalStateException("Unknown spacing=" + spacing);
+  }
+
   public double getCoordMidpoint(int index) {
     if (index < 0 || index >= getNcoords())
       throw new IllegalArgumentException("Index out of range=" + index);
@@ -367,7 +386,7 @@ public class CoverageCoordAxis1D extends CoverageCoordAxis { // implements Itera
         // default is all
         break;
 
-      // x,y get seperately subsetted
+      // x,y get separately subsetted
       case GeoX:
       case GeoY:
       case Lat:
@@ -377,7 +396,8 @@ public class CoverageCoordAxis1D extends CoverageCoordAxis { // implements Itera
 
       case Time:
         if (params.isTrue(SubsetParams.timePresent))
-          return Optional.of(helper.subsetLatest());
+          return Optional.of(helper.subsetClosest(CalendarDate.present()));
+
 
         CalendarDate date = (CalendarDate) params.get(SubsetParams.time);
         if (date != null)

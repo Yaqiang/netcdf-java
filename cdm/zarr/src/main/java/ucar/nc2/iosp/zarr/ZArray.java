@@ -178,9 +178,12 @@ public class ZArray {
       int[] chunks = StreamSupport.stream(((ArrayNode) root.path(ZarrKeys.CHUNKS)).spliterator(), false)
           .mapToInt(JsonNode::asInt).toArray();
       String dtype = ((JsonNode) root.path(ZarrKeys.DTYPE)).asText();
+
       JsonNode fillValueNode = (JsonNode) root.path(ZarrKeys.FILL_VALUE);
       final Object fill;
-      if (fillValueNode.isLong()) {
+      if (fillValueNode.isInt()) {
+        fill = fillValueNode.asInt();
+      } else if (fillValueNode.isLong()) {
         fill = fillValueNode.longValue();
       } else if (fillValueNode.isFloat()) {
         fill = fillValueNode.floatValue();
@@ -199,7 +202,7 @@ public class ZArray {
       try {
         Map<String, Object> compBean = codec.readValue(root.path(ZarrKeys.COMPRESSOR).traverse(codec), HashMap.class);
 
-        Filter compressor = Filters.getFilterByName(compBean);
+        Filter compressor = Filters.getFilter(compBean);
 
         List<Filter> filters = new ArrayList<>();
 
@@ -208,7 +211,7 @@ public class ZArray {
 
         if (filtersBean != null) {
           for (Map<String, Object> bean : filtersBean) {
-            filters.add(Filters.getFilterByName(bean));
+            filters.add(Filters.getFilter(bean));
           }
         }
         return new ZArray(shape, chunks, fill, dtype, compressor, order, filters, delimiter);

@@ -9,6 +9,7 @@ buildscript {
   // The buildscript {} block is odd: even though we applied dependencies.gradle above, the repositories therein
   // do not get included here. Instead, we must explicitly define the repos again. Yay for duplication.
   repositories {
+    mavenCentral()
     gradlePluginPortal()
     exclusiveContent {
       forRepository {
@@ -45,7 +46,7 @@ allprojects {
   // <prerelease version> may be SNAPSHOT, alphax, betax, etc.
   // Note - if bumping to a new major or minor version, be sure to update the docs (see step 1 in
   // docs/src/private/internal/release.md for details)
-  version = '5.5.3-SNAPSHOT'
+  version = '5.5.4-SNAPSHOT'
   status = 'development'
 }
 
@@ -107,7 +108,7 @@ gradle.projectsEvaluated {
 
 tasks.named('wrapper') {
   distributionType = Wrapper.DistributionType.ALL
-  gradleVersion = '6.8.2'
+  gradleVersion = '6.9.1'
 }
 
 // Set up properties needed for all testing, adds "testAll" task to root
@@ -129,3 +130,9 @@ apply from: "$rootDir/gradle/root/dependency-check.gradle"
 apply from: "$rootDir/gradle/any/archiving.gradle"
 // Modifies pubs created in root/publishing.gradle
 apply from: "$rootDir/gradle/any/publishing.gradle"
+
+// shortcut to run toolsUI
+tasks.register("toolsui") {
+  group = "application"
+  dependsOn(":uicdm:run")
+}

@@ -4,6 +4,12 @@
  */
 package ucar.nc2.dods;
 
+import static com.google.common.truth.Truth.assertThat;
+
+import org.junit.After;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ucar.ma2.Array;
@@ -12,12 +18,12 @@ import ucar.ma2.InvalidRangeException;
 import ucar.nc2.Dimension;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.Variable;
-import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dataset.NetcdfDatasets;
 import ucar.nc2.util.DebugFlagsImpl;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
+import ucar.unidata.util.test.category.NeedsExternalResource;
 
 /**
  * Test nc2 dods in the JUnit framework.
@@ -33,35 +39,41 @@ import java.util.List;
 public class TestUserProblems {
   private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-  @org.junit.Test
+  @After
+  public void resetSystemProperty() {
+    System.setProperty("httpservices.urlencode", "true");
+  }
+
+  @Category(NeedsExternalResource.class)
+  @Test
   public void testGrid() throws IOException, InvalidRangeException {
     System.setProperty("httpservices.urlencode", "false");
     try (DODSNetcdfFile dodsfile =
         TestDODSRead.openAbs("http://iridl.ldeo.columbia.edu/SOURCES/.NOAA/.NCEP/.CPC/.GLOBAL/.daily/dods")) {
 
-      Variable dataV = null;
+      Variable dataV = dodsfile.findVariable("olr");
 
       // array
-      assert (null != (dataV = dodsfile.findVariable("olr")));
-      assert dataV instanceof DODSVariable;
+      assertThat(dataV != null).isTrue();
+      assertThat(dataV instanceof DODSVariable).isTrue();
 
       // maps
-      Variable v = null;
-      assert (null != (v = dodsfile.findVariable("time")));
-      assert (null != (v = dodsfile.findVariable("lat")));
-      assert (null != (v = dodsfile.findVariable("lon")));
+      assertThat(dodsfile.findVariable("time") != null).isTrue();
+      assertThat(dodsfile.findVariable("lat") != null).isTrue();
+      assertThat(dodsfile.findVariable("lon") != null).isTrue();
 
       // read data
       Array data = dataV.read("0, 0:72:1, 0:143:1");
-      assert null != data;
+      assertThat(data).isNotNull();
     }
-    System.setProperty("httpservices.urlencode", "true");
   }
 
   // ucar.nc2.dods.TestUserProblems > testNomads STANDARD_ERROR
   // opendap.dap.DAP2Exception: Method failed:HTTP/1.1 403 Forbidden on URL=
   // http://nomads.ncdc.noaa.gov/thredds/dodsC/cfsr1hr/200912/tmp2m.gdas.200912.grb2.dods?Temperature[0:1:744][0:1:0][0:1:575][0:1:1151]
-  // @org.junit.Test
+  @Category(NeedsExternalResource.class)
+  @Ignore
+  @Test
   public void testNomads() throws InvalidRangeException {
     // This server is running TDS v4.2, and there appears to be an issue with encoded urls?
     System.setProperty("httpservices.urlencode", "false");
@@ -94,12 +106,10 @@ public class TestUserProblems {
       ArrayFloat.D4 Temperature = (ArrayFloat.D4) V2.read(origin, shape).reduce();
 
     } catch (IOException ioe) {
-      System.setProperty("httpservices.urlencode", "true");
       System.out.println("trying to open " + testfile + " " + ioe);
       // getting 403 on 2 GB request
       assert true;
     }
-    System.setProperty("httpservices.urlencode", "true");
     System.out.println("---- End of File ----");
   }
 }

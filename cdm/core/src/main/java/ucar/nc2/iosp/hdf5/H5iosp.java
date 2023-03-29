@@ -90,6 +90,14 @@ public class H5iosp extends AbstractIOServiceProvider {
     }
   }
 
+  RandomAccessFile getRandomAccessFile() {
+    return raf;
+  }
+
+  H5header getHeader() {
+    return headerParser;
+  }
+
   public static void useHdfEos(boolean val) {
     useHdfEos = val;
   }
@@ -107,7 +115,7 @@ public class H5iosp extends AbstractIOServiceProvider {
   public void open(RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask)
       throws IOException {
     super.open(raf, ncfile, cancelTask);
-    headerParser = new H5header(this.raf, ncfile, this);
+    headerParser = new H5header(ncfile, this);
     headerParser.read(null);
 
     // check if its an HDF5-EOS file
@@ -397,7 +405,7 @@ public class H5iosp extends AbstractIOServiceProvider {
       assert v2 != null;
       H5header.Vinfo vm = (H5header.Vinfo) v2.getSPobject();
 
-      // apparently each member may have seperate byte order (!!!??)
+      // apparently each member may have separate byte order (!!!??)
       if (vm.typeInfo.endian >= 0)
         m.setDataObject(
             vm.typeInfo.endian == RandomAccessFile.LITTLE_ENDIAN ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
@@ -605,7 +613,6 @@ public class H5iosp extends AbstractIOServiceProvider {
   @Override
   public void reacquire() throws IOException {
     super.reacquire();
-    headerParser.raf = this.raf;
   }
 
   @Override
@@ -626,7 +633,7 @@ public class H5iosp extends AbstractIOServiceProvider {
 
     try {
       NetcdfFile ncfile = new NetcdfFileSubclass();
-      H5header detailParser = new H5header(raf, ncfile, this);
+      H5header detailParser = new H5header(ncfile, this);
       detailParser.read(pw);
       f.format("%s", super.getDetailInfo());
       f.format("%s", os.toString(CDM.UTF8));
@@ -650,7 +657,7 @@ public class H5iosp extends AbstractIOServiceProvider {
 
     if (message.toString().equals("headerEmpty")) {
       NetcdfFile ncfile = new NetcdfFileSubclass();
-      return new H5header(raf, ncfile, this);
+      return new H5header(ncfile, this);
     }
 
     if (message.equals(IOSP_MESSAGE_GET_NETCDF_FILE_FORMAT)) {

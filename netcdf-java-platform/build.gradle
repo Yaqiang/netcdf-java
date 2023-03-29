@@ -9,12 +9,10 @@ javaPlatform {
 }
 
 dependencies {
-  // Results in upgrading jackson-databind to 2.10.5.1, which contains a fix for
-  // CVE-2020-25649 (https://nvd.nist.gov/vuln/detail/CVE-2020-25649)
-  // See https://github.com/FasterXML/jackson-databind/issues/2589#issuecomment-736973925
-  // jackson-databind is pulled in by AWS SDK (true as of version 2.15.40), so once they update to
-  // a newer version, we can get rid of this (and the javaPlatform allowDependencies() block above).
-  api enforcedPlatform('com.fasterxml.jackson:jackson-bom:2.10.5.20201202')
+  def awsVersion = '2.17.290'
+  def jacksonVersion = '2.14.0-rc1'
+  api enforcedPlatform("software.amazon.awssdk:bom:${awsVersion}")
+  api enforcedPlatform("com.fasterxml.jackson:jackson-bom:${jacksonVersion}")
   constraints {
     // Note: The depVersion variable is defined in gradle/any/shared-mvn-coords.gradle and is used for dependencies
     // that are used in different configurations of a build that need access to the full maven coordinates.
@@ -30,7 +28,7 @@ dependencies {
     // netcdf4, dap4:d4lib
     // Tricky dependency here. We need to make sure that we keep in-line with the version
     // that chronicle-map uses in the TDS, or else we see bad things happen on the TDS side.
-    api 'net.java.dev.jna:jna:5.4.0'
+    api 'net.java.dev.jna:jna:5.12.1'
 
     // Annotations: Nullable
     api 'com.google.code.findbugs:jsr305:3.0.2'
@@ -48,11 +46,14 @@ dependencies {
     // cdm-vis5d (vis5d IOSP)
     api 'edu.wisc.ssec:visad:2.0-20130124'
 
-    // cdm-s3 (S3RandomAccessFile)
-    // If updating from 2.15.40, see note the note at the top of this dependencies block regarding
-    // the use of jackson-databind enforcedPlatform.
-    api 'software.amazon.awssdk:s3:2.15.46'
-    api 'software.amazon.awssdk:apache-client:2.15.46'
+    // netcdfAll (everything else is happy with the Jackson BOM)
+    api "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+    api "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+
+    // toolsUI (everything else is happy with the aws BOM)
+    api "software.amazon.awssdk:s3:2.17.290:${awsVersion}"
+    api "software.amazon.awssdk:apache-client:${awsVersion}"
+    runtime "software.amazon.awssdk:sts:${awsVersion}"
 
     // apache httpclient
     api 'org.apache.httpcomponents:httpclient:4.5.13'
@@ -76,7 +77,7 @@ dependencies {
 
     // legacy gradle module
     // todo: remove with legacy in 6
-    api 'com.amazonaws:aws-java-sdk-s3:1.11.871'
+    api 'com.amazonaws:aws-java-sdk-s3:1.12.263'
   }
 }
 

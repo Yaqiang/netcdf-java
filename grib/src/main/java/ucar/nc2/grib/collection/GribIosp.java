@@ -332,8 +332,6 @@ public abstract class GribIosp extends AbstractIOServiceProvider {
       cv.setCachedData(Array.makeArray(DataType.FLOAT, hcs.ny, hcs.starty, hcs.dy));
     }
 
-    boolean singleRuntimeWasMade = false;
-
     for (Coordinate coord : group.coords) {
       Coordinate.Type ctype = coord.getType();
       switch (ctype) {
@@ -442,7 +440,7 @@ public abstract class GribIosp extends AbstractIOServiceProvider {
               dimNames.format("%s %s ", run.getName(), timeDimName);
             }
             coordinateAtt.format("%s %s ", run.getName(), timeCoordName);
-            if (timeDimName != timeCoordName) {
+            if (!timeDimName.equals(timeCoordName)) {
               coordinateAtt.format("%s ", timeDimName);
             }
             break;
@@ -454,7 +452,7 @@ public abstract class GribIosp extends AbstractIOServiceProvider {
             break;
 
           default:
-            throw new IllegalStateException("Uknown GribCollection TYpe = " + gctype);
+            throw new IllegalStateException("Unknown GribCollection Type = " + gctype);
         }
 
         // do other (vert, ens) coordinates
@@ -780,26 +778,54 @@ public abstract class GribIosp extends AbstractIOServiceProvider {
           CoordinateTimeIntv timeIntv = (CoordinateTimeIntv) time2D.getTimeCoordinate(runIdx);
           int timeIdx = 0;
           for (TimeCoordIntvValue tinv : timeIntv.getTimeIntervals()) {
-            data[runIdx * ntimes + timeIdx] = timeUnit.getValue() * tinv.getBounds2() + time2D.getOffset(runIdx); // use
-                                                                                                                  // upper
-                                                                                                                  // bounds
-                                                                                                                  // for
-                                                                                                                  // coord
-                                                                                                                  // value
+            data[runIdx * ntimes + timeIdx] = timeUnit.getValue() * tinv.getCoordValue() + time2D.getOffset(runIdx);
             timeIdx++;
           }
         }
         break;
 
       case intvU:
-        count = 0;
+        // data[nruns*ntimes]
+        int dataIndex = 0;
+        double[] currentBounds = new double[2];
+        double[] prevBounds = new double[2];
         for (int runIdx = 0; runIdx < nruns; runIdx++) {
           CoordinateTimeIntv timeIntv = (CoordinateTimeIntv) time2D.getTimeCoordinate(runIdx);
+          int runOffsetIndex = runIdx * ntimes;
+          int timeUnitValue = timeUnit.getValue();
+          int time2D_Offset = time2D.getOffset(runIdx);
           for (TimeCoordIntvValue tinv : timeIntv.getTimeIntervals()) {
-            data[count++] = timeUnit.getValue() * tinv.getBounds2() + time2D.getOffset(runIdx); // use upper bounds for
-                                                                                                // coord value
+            currentBounds[0] = timeUnitValue * tinv.getBounds1() + time2D_Offset;
+            currentBounds[1] = timeUnitValue * tinv.getBounds2() + time2D_Offset;
+            // Use end-point of current interval as initial guess for current time coordinate value
+            data[dataIndex] = currentBounds[1];
+            if (dataIndex >= runOffsetIndex + 1) {
+              // Check that time coordinate values are increasing in a strictly-monotonic manner
+              // (as required by CF conventions). If not strictly-monotonic ...
+              if (data[dataIndex] <= data[dataIndex - 1]) {
+                if (dataIndex >= runOffsetIndex + 2) {
+                  if (data[dataIndex - 2] <= currentBounds[0]) {
+                    // Change previous time coordinate value to mid-point between
+                    // current time interval start and end values.
+                    data[dataIndex - 1] = (currentBounds[1] - currentBounds[0]) / 2.0 + currentBounds[0];
+                  } else {
+                    // Or change previous time coordinate value to mid-point between
+                    // current time interval end value and the time coord value from two steps back.
+                    data[dataIndex - 1] = (currentBounds[1] - data[dataIndex - 2]) / 2.0 + data[dataIndex - 2];
+                  }
+                } else {
+                  data[dataIndex - 1] = (prevBounds[1] - prevBounds[0]) / 2.0 + prevBounds[0];
+                }
+              }
+            }
+            prevBounds[0] = currentBounds[0];
+            prevBounds[1] = currentBounds[1];
+            dataIndex++;
           }
         }
+        // The above assumes that sets of intervals are always sorted by
+        // end point then starting point. That sorting scheme is implemented in
+        // ucar.nc2.grib.coord.TimeCoordIntvValue.compareTo(o) -- 21 Dec 2022.
         break;
 
       case is1Dtime:
@@ -910,9 +936,8 @@ public abstract class GribIosp extends AbstractIOServiceProvider {
     double[] data = new double[ntimes];
     int count = 0;
 
-    // use upper bounds for coord value
     for (TimeCoordIntvValue tinv : coordTime.getTimeIntervals()) {
-      data[count++] = tinv.getBounds2();
+      data[count++] = tinv.getCoordValue();
     }
     v.setCachedData(Array.factory(DataType.DOUBLE, new int[] {ntimes}, data));
 

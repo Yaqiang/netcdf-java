@@ -181,7 +181,8 @@ public class CoordinateAxis1D extends CoordinateAxis {
   }
 
   // for section and slice
-
+  /** @deprecated Use {@link #toBuilder()} */
+  @Deprecated
   @Override
   protected CoordinateAxis1D copy() {
     return new CoordinateAxis1D(this.ncd, this);
@@ -972,10 +973,18 @@ public class CoordinateAxis1D extends CoordinateAxis {
   private void makeEdges() {
     int size = (int) getSize();
     edge = new double[size + 1];
-    if (size < 1)
+    if (size < 1) {
       return;
-    for (int i = 1; i < size; i++)
+    }
+    if (size == 1) {
+      // if the axis size is one, edges are the same as the coord
+      edge[0] = coords[0];
+      edge[1] = coords[0];
+      return;
+    }
+    for (int i = 1; i < size; i++) {
       edge[i] = (coords[i - 1] + coords[i]) / 2;
+    }
     edge[0] = coords[0] - (edge[1] - coords[0]);
     edge[size] = coords[size - 1] + (coords[size - 1] - edge[size - 1]);
     isContiguous = true;

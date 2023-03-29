@@ -354,8 +354,8 @@ public class NetcdfDataset extends ucar.nc2.NetcdfFile {
   @Deprecated
   public static synchronized void initNetcdfFileCache(int minElementsInMemory, int maxElementsInMemory, int hardLimit,
       int period) {
-    netcdfFileCache = new ucar.nc2.util.cache.FileCache("NetcdfFileCache ", minElementsInMemory, maxElementsInMemory,
-        hardLimit, period);
+    netcdfFileCache = new ucar.nc2.util.cache.FileCache("NetcdfFileCache (deprecated)", minElementsInMemory,
+        maxElementsInMemory, hardLimit, period);
   }
 
   /** @deprecated use NetcdfDatasets.disableNetcdfFileCache */
@@ -1626,6 +1626,10 @@ public class NetcdfDataset extends ucar.nc2.NetcdfFile {
     return addLocalFieldsToBuilder(builder());
   }
 
+  /**
+   * @deprecated Use NetcdfDataset.builder()
+   */
+  @Deprecated
   public NetcdfDataset(NetcdfFile.Builder<?> builder) {
     super(builder);
     // LOOK this.orgFile = builder.orgFile;

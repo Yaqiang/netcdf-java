@@ -86,24 +86,25 @@ class CoordAxisHelper {
 
     double distance = coordValue - axis.getCoordEdge1(0);
     double exactNumSteps = distance / axis.getResolution();
-    // int index = (int) Math.round(exactNumSteps); // ties round to +Inf
-    int index = (int) exactNumSteps; // truncate down
+    int index = (int) Math.floor(exactNumSteps); // truncate down
 
-    if (bounded && index < 0)
+    if (bounded && index < 0) {
       return 0;
-    if (bounded && index >= n)
+    }
+    if (bounded && index >= n) {
       return n - 1;
+    }
 
     // check that found point is within interval
     if (index >= 0 && index < n) {
       double lower = axis.getCoordEdge1(index);
       double upper = axis.getCoordEdge2(index);
       if (axis.isAscending()) {
-        assert lower <= coordValue : lower + " should be le " + coordValue;
-        assert upper >= coordValue : upper + " should be ge " + coordValue;
+        assert lower <= coordValue : lower + " should be <= " + coordValue;
+        assert upper >= coordValue : upper + " should be >= " + coordValue;
       } else {
-        assert lower >= coordValue : lower + " should be ge " + coordValue;
-        assert upper <= coordValue : upper + " should be le " + coordValue;
+        assert lower >= coordValue : lower + " should be >= " + coordValue;
+        assert upper <= coordValue : upper + " should be <= " + coordValue;
       }
     }
 
@@ -398,19 +399,24 @@ class CoordAxisHelper {
     int minIndex = findCoordElement(lower, false);
     int maxIndex = findCoordElement(upper, false);
 
-    if (minIndex >= axis.getNcoords())
+    if (minIndex >= axis.getNcoords()) {
       return Optional.empty(String.format("no points in subset: lower %f > end %f", lower, axis.getEndValue()));
-    if (maxIndex < 0)
+    }
+    if (maxIndex < 0) {
       return Optional.empty(String.format("no points in subset: upper %f < start %f", upper, axis.getStartValue()));
+    }
 
-    if (minIndex < 0)
+    if (minIndex < 0) {
       minIndex = 0;
-    if (maxIndex >= axis.getNcoords())
+    }
+    if (maxIndex >= axis.getNcoords()) {
       maxIndex = axis.getNcoords() - 1;
+    }
 
     int count = maxIndex - minIndex + 1;
-    if (count <= 0)
+    if (count <= 0) {
       throw new IllegalArgumentException("no points in subset");
+    }
 
     try {
       return Optional.of(subsetByIndex(new Range(minIndex, maxIndex, stride)));
@@ -490,8 +496,7 @@ class CoordAxisHelper {
 
     // subset(int ncoords, double start, double end, double[] values)
     CoverageCoordAxisBuilder builder = new CoverageCoordAxisBuilder(axis);
-    builder.subset(ncoords, axis.getCoordMidpoint(range.first()), axis.getCoordMidpoint(range.last()), resolution,
-        subsetValues);
+    builder.subset(ncoords, axis.getCoord(range.first()), axis.getCoord(range.last()), resolution, subsetValues);
     builder.setRange(range);
     return builder;
   }

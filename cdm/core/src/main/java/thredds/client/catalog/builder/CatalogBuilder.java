@@ -59,12 +59,28 @@ public class CatalogBuilder {
     }
 
     this.baseURI = baseURI;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     readXML(location);
     return fatalError ? null : makeCatalog();
   }
 
   public Catalog buildFromURI(URI uri) {
     this.baseURI = uri;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     readXML(uri);
     return fatalError ? null : makeCatalog();
   }
@@ -78,6 +94,14 @@ public class CatalogBuilder {
       return null;
     }
     this.baseURI = catrefURI;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     Catalog result = buildFromURI(catrefURI);
     catref.setRead(!fatalError);
     return fatalError ? null : result;
@@ -85,20 +109,69 @@ public class CatalogBuilder {
 
   public Catalog buildFromString(String catalogAsString, URI docBaseUri) {
     this.baseURI = docBaseUri;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     readXMLfromString(catalogAsString);
     return fatalError ? null : makeCatalog();
   }
 
   public Catalog buildFromStream(InputStream stream, URI docBaseUri) {
     this.baseURI = docBaseUri;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     readXML(stream);
     return fatalError ? null : makeCatalog();
   }
 
   public Catalog buildFromJdom(Element root, URI docBaseUri) {
     this.baseURI = docBaseUri;
+    try {
+      validatePort(baseURI);
+    } catch (IllegalArgumentException e) {
+      errlog.format("Invalid port number = '%s' err='%s'%n ", baseURI.toASCIIString(), e.getMessage());
+      logger.error("Invalid port number = '{}' err='{}}'", baseURI.toASCIIString(), e.getMessage());
+      fatalError = true;
+      return null;
+    }
     readCatalog(root);
     return fatalError ? null : makeCatalog();
+  }
+
+  /*
+   * Validates port number of given URI.
+   * URI already meets RFC 2396 to pass creation.
+   * We are checking to make sure port # isn't something nefarious.
+   *
+   * @param baseURI java.net.URI to validate
+   * 
+   * @throws IllegalArgumentException if URI port number if
+   * 
+   * @see <https://github.com/Unidata/netcdf-java/pull/1131>
+   */
+  private void validatePort(URI baseURI) throws IllegalArgumentException {
+    int port = baseURI.getPort();
+    // -1 means port undefined
+    if (port != -1) {
+      // TCP/IP port numbers below 1024 are only for root user.
+      if (port < 1024) {
+        if (port != 80 && port != 443) {
+          throw new IllegalArgumentException(
+              "User requesting access to catalog on non-valid root-privileged port: " + Integer.toString(port));
+        }
+      }
+    }
   }
 
   public String getErrorMessage() {
@@ -291,12 +364,7 @@ public class CatalogBuilder {
       Document jdomDoc = saxBuilder.build(location);
       readCatalog(jdomDoc.getRootElement());
     } catch (Exception e) {
-      errlog.format("failed to read catalog at '%s' err='%s'%n", location, e);
-      logger.error("failed to read catalog at {}, {}", location, e.toString());
-      if (logger.isTraceEnabled()) {
-        e.printStackTrace();
-      }
-      fatalError = true;
+      logError(e, "failed to read xml catalog at " + location);
     }
   }
 
@@ -307,12 +375,7 @@ public class CatalogBuilder {
       Document jdomDoc = saxBuilder.build(uri.toURL());
       readCatalog(jdomDoc.getRootElement());
     } catch (Exception e) {
-      errlog.format("failed to read catalog at '%s' err='%s'%n", uri.toString(), e);
-      logger.error("failed to read catalog at {}, {}", uri, e.toString());
-      if (logger.isTraceEnabled()) {
-        e.printStackTrace();
-      }
-      fatalError = true;
+      logError(e, "failed to read xml catalog at " + uri);
     }
   }
 
@@ -324,12 +387,7 @@ public class CatalogBuilder {
       Document jdomDoc = saxBuilder.build(in);
       readCatalog(jdomDoc.getRootElement());
     } catch (Exception e) {
-      errlog.format("failed to read catalogAsString err='%s'%n", e);
-      logger.error("failed to read catalogAsString at {}, {}", baseURI, e.toString());
-      if (logger.isTraceEnabled()) {
-        e.printStackTrace();
-      }
-      fatalError = true;
+      logError(e, "failed to read xml catalog at " + baseURI);
     }
   }
 
@@ -340,13 +398,17 @@ public class CatalogBuilder {
       Document jdomDoc = saxBuilder.build(stream);
       readCatalog(jdomDoc.getRootElement());
     } catch (Exception e) {
-      errlog.format("failed to read catalogAsString err='%s'%n", e);
-      logger.error("failed to read catalogAsString at {}, {}", baseURI, e.toString());
-      if (logger.isTraceEnabled()) {
-        e.printStackTrace();
-      }
-      fatalError = true;
+      logError(e, "failed to read xml catalog at " + baseURI);
     }
+  }
+
+  private void logError(Exception e, String message) {
+    errlog.format(message);
+    logger.error(message + ", err=" + e);
+    if (logger.isTraceEnabled()) {
+      e.printStackTrace();
+    }
+    fatalError = true;
   }
 
   /*

@@ -63,7 +63,7 @@ public class TestControllerS3 {
   }
 
   //////////////////////
-  // getInventoryAll() tests
+  // getInventoryTop() tests
   //
   @Test
   public void testGetInventoryTopBucketNoDelimiterAws() throws URISyntaxException {
@@ -322,12 +322,16 @@ public class TestControllerS3 {
 
   private int countObjects(Iterator<MFile> it) {
     int i = 0;
+    String previousFileName = "";
+
     while (it.hasNext()) {
       MFile mFile = it.next();
       if (PRINT) {
         System.out.print("\n The name of the MFile is " + mFile.getPath() + " " + i);
       }
       i++;
+      assertThat(mFile.getPath()).isNotEqualTo(previousFileName);
+      previousFileName = mFile.getPath();
     }
     return i;
   }

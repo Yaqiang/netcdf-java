@@ -20,7 +20,7 @@ import java.util.List;
  * 1) ConstantForecast: runtime (ind), timeOffset (dep), time (scalar)
  * 1) Best: time (ind), runtime (dep)
  *
- * Grib: If theres a time offset, then there must be a runtime coordinate, and the time offset is reletive to that.
+ * Grib: If theres a time offset, then there must be a runtime coordinate, and the time offset is relative to that.
  * LOOK only used by Grib
  */
 @Immutable
@@ -202,7 +202,7 @@ public class CoordsSet implements Iterable<SubsetParams> {
       double[] adjustVal = {axis.getCoordEdge1(coordIdx) + adjust, axis.getCoordEdge2(coordIdx) + adjust};
       result.setTimeOffsetIntv(adjustVal);
       double mid = (adjustVal[0] + adjustVal[1]) / 2.0;
-      result.set(SubsetParams.timeOffsetUnit, axis.makeDateInTimeUnits(runtime, mid)); // validation
+      result.set(SubsetParams.timeOffsetDate, axis.makeDateInTimeUnits(runtime, mid)); // validation
       result.set(SubsetParams.timeOffsetUnit, axis.getCalendarDateUnit()); // validation
     } else {
       double adjustVal = axis.getCoordMidpoint(coordIdx) + adjust;
